@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(References)/BepInEx.dll" />
+    <Reference Include="$(References)/UnityEngine.dll" />
+    <Reference Include="$(References)/Assembly-CSharp.dll" />
+    <Reference Include="$(References)/HOOKS-Assembly-CSharp.dll" />
+  </ItemGroup>
+
+</Project>
+
+<!--Include a <ProjectName>.csproj.user file that looks like the following:
+<Project>
+
+  <PropertyGroup>
+    <References>C:/path/to/your/references/folder</References>
+  </PropertyGroup>
+  
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetDir)$(TargetName)$(TargetExt)" DestinationFolder="C:/path/to/your/BepInEx/plugins/folder" />
+  </Target>
+
+</Project>
+-->
