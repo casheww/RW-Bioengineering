@@ -33,8 +33,7 @@ public sealed class PoisonousPopcornPlugin : BaseUnityPlugin
             if (obj is InsectCoordinator insectCoordinator)
             {
                 smallInsects = insectCoordinator;
-                break;
-            }
+                break; }
         }
 
         int cloudCount = (int)Mathf.Lerp(7, 15, Random.value);
