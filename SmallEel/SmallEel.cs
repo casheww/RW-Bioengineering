@@ -1,4 +1,5 @@
-﻿using RWCustom;
+﻿using System.Linq;
+using RWCustom;
 using UnityEngine;
 
 namespace SmallEel;
@@ -7,7 +8,7 @@ public class SmallEel : Creature
 {
     public SmallEel(AbstractCreature abstractCreature) : base(abstractCreature, abstractCreature.world)
     {
-        GenerateIVars(out int chunkCount);
+        GenerateIVars(out size, out int chunkCount);
         
         bodyChunks = new BodyChunk[chunkCount];
         bodyChunkConnections = new BodyChunkConnection[bodyChunks.Length - 1];
@@ -34,18 +35,17 @@ public class SmallEel : Creature
 
         _oscillationPeriod = 30f;
         _oscillationPosition = 0f;
-        _oscillationAmplitude = 40f;
     }
     
-    private void GenerateIVars(out int chunkCount)
+    private void GenerateIVars(out float size, out int chunkCount)
     {
         int seed = Random.seed;
         Random.seed = abstractCreature.ID.RandomSeed;
         
-        BaseColor = new HSLColor(Random.value, 0.4f, 0.3f).rgb;
+        BaseColor = new HSLColor(Random.value, 0.25f, 0.2f).rgb;
 
-        float size = Random.value;      // TODO: load size from abstractCreature.spawnData
-        chunkCount = Mathf.FloorToInt(Mathf.Lerp(5f, 15f, size));
+        size = Random.value;      // TODO: load size from abstractCreature.spawnData
+        chunkCount = Mathf.FloorToInt(Mathf.Lerp(8f, 15f, size));
         
         Random.seed = seed;
     }
@@ -58,15 +58,23 @@ public class SmallEel : Creature
         UpdateHealthState();
 
         // decrement cooldown when alive
-        if (_shockCooldown > 0 && !dead)
-            _shockCooldown--;
+        if (shockCooldown > 0 && !dead)
+            shockCooldown--;
         
-        // shock when grabbed - may happen after death if cooldown was 0 before death
-        if (grabbedBy.Count > 0 && _shockCooldown <= 0)
+        // shock when grabbed - may happen once after death if cooldown was 0 before death
+        if (grabbedBy.Count > 0 && shockCooldown <= 0)
             TryShock();
 
         if (Consious)
             Act();
+
+        if (grasps[0] != null)
+        {
+            BodyChunk bc = grasps[0].grabbedChunk;
+            Vector2 v = Custom.DirVec(bc.pos, mainBodyChunk.pos) * Custom.Dist(bc.pos, mainBodyChunk.pos);
+            bc.vel += v * 0.9f;
+            mainBodyChunk.vel -= v * 0.1f;
+        }
     }
 
     private void UpdateDevTools()
@@ -94,12 +102,40 @@ public class SmallEel : Creature
     private void Act()
     {
         ai.Update();
-        
+
         if (Submersion >= 0.3f)
-            Swim();
-        else
         {
+            Swim();
+
+            if (ai.MyBehaviour is SmallEelAI.Behaviour.Flee or SmallEelAI.Behaviour.Hunt)
+            {
+                float dist = Custom.Dist(mainBodyChunk.pos, ai.TargetCreature.realizedCreature.mainBodyChunk.pos);
+
+                if (dist < ShockRad)
+                    TryShock();
+            }
             
+            if (ai.MyBehaviour is not SmallEelAI.Behaviour.Hunt) return;
+                
+            Creature prey = ai.TargetCreature.realizedCreature;
+            int closestIndex = 0;
+            float closestDist = float.MaxValue;
+
+            for (int i = 0; i < prey.bodyChunks.Length; i++)
+            {
+                float d = Custom.Dist(mainBodyChunk.pos, prey.bodyChunks[i].pos);
+                if (d < closestDist)
+                {
+                    closestIndex = i;
+                    closestDist = d;
+                }
+            }
+
+            if (closestDist < 30f && grasps[0] == null)
+            {
+                Grab(prey, 0, closestIndex, Grasp.Shareability.CanOnlyShareWithNonExclusive,
+                    1f, true, false);
+            }
         }
     }
 
@@ -135,18 +171,21 @@ public class SmallEel : Creature
     private void Wiggle(Vector2 dir)
     {
         Vector2 perp = Custom.PerpendicularVector(dir);
-        float x = _oscillationAmplitude * Mathf.Sin(_oscillationPosition * 2 * Mathf.PI);
-        _oscillationPosition = _oscillationAmplitude >= 1f ? 0f : _oscillationAmplitude + (1 / _oscillationPeriod);
+        float x = OscillationAmplitude * Mathf.Sin(_oscillationPosition * 2 * Mathf.PI);
+        _oscillationPosition = _oscillationPosition >= 1f ? 0f : _oscillationPosition + (1 / _oscillationPeriod);
         mainBodyChunk.vel += perp * x;
     }
 
     private bool TryShock()
     {
-        if (_shockCooldown > 0) return false;
+        Debug.Log("shock");
+        if (shockCooldown > 0 || Submersion < 0.3f) return false;
         
-        Debug.Log("EEL SHOCK");
-        
-        _shockCooldown = bodyChunks.Length * Mathf.FloorToInt(Mathf.Lerp(20f, 80f, 1f / bodyChunks.Length));
+        room.PlaySound(SoundID.Centipede_Shock, mainBodyChunk.pos);
+        room.AddObject(new UnderwaterShock(room, this, this.mainBodyChunk.pos, 14, ShockRad,
+            0.2f+ 1.8f * size, this, new Color(0.9f, 0.9f, 0.7f)));
+
+        shockCooldown = bodyChunks.Length * Mathf.FloorToInt(Mathf.Lerp(20f, 80f, 1f / bodyChunks.Length));
         return true;
     }
     
@@ -157,14 +196,14 @@ public class SmallEel : Creature
 
     
     public SmallEelAI ai;
-    public Color BaseColor { get; private set; }
-    private int _shockCooldown;
-
-    private const float maxAccel = 0.05f;
+    public int shockCooldown;
+    public readonly float size;
     private float Speed => ai?.MyBehaviour == SmallEelAI.Behaviour.Idle ? 2f : 3.5f;
-    
+    public Color BaseColor { get; private set; }
+    private float ShockRad => Mathf.Lerp(250f, 500f, size) + +(Random.value - 0.5f) * 160f;
+
     private float _oscillationPeriod;
     private float _oscillationPosition;
-    private float _oscillationAmplitude;
+    private float OscillationAmplitude => ai?.MyBehaviour == SmallEelAI.Behaviour.Hunt ? 7.5f : 15f;
 
 }
