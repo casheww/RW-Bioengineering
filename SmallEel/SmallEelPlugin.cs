@@ -1,10 +1,9 @@
 ﻿using System;
 using BepInEx;
-using UnityEngine;
 
 namespace SmallEel;
 
-[BepInPlugin("casheww.large_mushroom", nameof(SmallEel), "0.1.0")]
+[BepInPlugin("casheww.small_eel", nameof(SmallEel), "0.1.0")]
 public sealed class SmallEelPlugin : BaseUnityPlugin
 {
     public SmallEelPlugin()
@@ -14,8 +13,14 @@ public sealed class SmallEelPlugin : BaseUnityPlugin
 
     private void OnEnable() => Hooks.Enable();
 
-    private void OnDisable() => Hooks.Disable(); 
+    private void OnDisable() => Hooks.Disable();
+
+    private void Update()
+    {
+        textManager.Update();
+    }
 
     public static BepInEx.Logging.ManualLogSource Log { get; private set; }
-    
+    public static DebuggingHelpers.DebugTextManager textManager = new ();
+
 }

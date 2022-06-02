@@ -26,6 +26,7 @@ public class SmallEelGraphics : GraphicsModule
         sLeaser.sprites = new FSprite[] {mesh};
         
         base.InitiateSprites(sLeaser, rCam);
+        AddToContainer(sLeaser, rCam, null);
     }
 
     public override void DrawSprites(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam, float timeStacker, Vector2 camPos)
@@ -49,11 +50,16 @@ public class SmallEelGraphics : GraphicsModule
             Vector2 perp = Custom.PerpendicularVector(dir);
             Vector2 mid = firstPos + dir * chunkSeparation / 2f;
             
-            Debug.Log(mid + perp * firstChunk.rad - camPos);
-            
             mesh.MoveVertice(2 * i, mid + perp * firstChunk.rad - camPos);
             mesh.MoveVertice(2 * i + 1, mid - perp * firstChunk.rad - camPos);
         }
+    }
+
+    public override void ApplyPalette(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam, RoomPalette palette)
+    {
+        base.ApplyPalette(sLeaser, rCam, palette);
+
+        sLeaser.sprites[0].color = _eel.BaseColor;
     }
 
     private readonly SmallEel _eel;
