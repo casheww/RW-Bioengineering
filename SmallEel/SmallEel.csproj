@@ -12,6 +12,7 @@
     <Reference Include="$(References)/HOOKS-Assembly-CSharp.dll" />
     <Reference Include="$(References)/MonoMod.RuntimeDetour.dll" />
     <Reference Include="$(References)/EnumExtender.dll" />
+    <Reference Include="$(References)/Fisobs.dll" />
   </ItemGroup>
 
 </Project>

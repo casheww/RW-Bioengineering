@@ -1,5 +1,4 @@
-﻿using System;
-using BepInEx;
+﻿using BepInEx;
 
 namespace SmallEel;
 
@@ -11,7 +10,11 @@ public sealed class SmallEelPlugin : BaseUnityPlugin
         Log = Logger;
     }
 
-    private void OnEnable() => Hooks.Enable();
+    private void OnEnable()
+    {
+        Hooks.Enable();
+        Fisobs.Core.Content.Register(new SmallEelCritob());
+    }
 
     private void OnDisable() => Hooks.Disable();
 
