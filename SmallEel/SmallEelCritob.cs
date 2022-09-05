@@ -43,9 +43,9 @@ public class SmallEelCritob : Critob
         ct.stowFoodInDen = true;
         ct.grasps = 1;
         ct.visualRadius = 800f;
-        ct.waterVision = 1f;
-        ct.throughSurfaceVision = 0.6f;
-        ct.dangerousToPlayer = 0.6f;
+        ct.waterVision = 1.1f;
+        ct.throughSurfaceVision = 0.05f;
+        ct.dangerousToPlayer = 0.7f;
         ct.canSwim = true;
         ct.waterRelationship = CreatureTemplate.WaterRelationship.WaterOnly;
 
