@@ -20,13 +20,13 @@ public class SmallEelCritob : Critob
 
     public override IEnumerable<CreatureTemplate> GetTemplates()
     {
-        CreatureTemplate ct = new CreatureFormula(this, "SmallEel")
+        CreatureTemplate ct = new CreatureFormula(this, "Small Eel")
         {
-            DefaultRelationship = new CreatureTemplate.Relationship(CreatureTemplate.Relationship.Type.Uncomfortable, 0.5f),
+            DefaultRelationship = new CreatureTemplate.Relationship(CreatureTemplate.Relationship.Type.Eats, 0.5f),
             HasAI = true,
             Pathing = PreBakedPathing.Ancestral(CreatureTemplate.Type.Leech),
-            TileResistances = new TileResist() {Air = new PathCost(1f, PathCost.Legality.Allowed)},
-            ConnectionResistances = new ConnectionResist()
+            TileResistances = new TileResist {Air = new PathCost(1f, PathCost.Legality.Allowed)},
+            ConnectionResistances = new ConnectionResist
             {
                 Standard = new PathCost(1f, PathCost.Legality.Allowed),
                 ShortCut = new PathCost(1.2f, PathCost.Legality.Allowed),
@@ -34,9 +34,9 @@ public class SmallEelCritob : Critob
                 BetweenRooms = new PathCost(40f, PathCost.Legality.Allowed),
                 NPCTransportation = new PathCost(40f, PathCost.Legality.Allowed)
             },
-            DamageResistances = new AttackResist() {Electric = 100f, Water = 50f, Blunt = 20f},
-            StunResistances = new AttackResist() {Base = 0.95f, Electric = 100f, Water = 50f},
-            InstantDeathDamage = 3f
+            DamageResistances = new AttackResist {Base = 1f, Electric = 100f, Water = 50f, Blunt = 20f},
+            StunResistances = new AttackResist {Base = 1f, Electric = 100f, Water = 50f},
+            InstantDeathDamage = 5f
         }.IntoTemplate();
 
         ct.bodySize = 1f;
@@ -57,7 +57,6 @@ public class SmallEelCritob : Critob
         Relationships rel = new Relationships(EnumExt_SmallEel.SmallEel);
         
         rel.Eats(CreatureTemplate.Type.Leech, 1.0f);
-        rel.Eats(CreatureTemplate.Type.LanternMouse, 1.0f);
         rel.Eats(CreatureTemplate.Type.Snail, 0.9f);
         rel.Eats(CreatureTemplate.Type.VultureGrub, 0.9f);
         rel.Eats(CreatureTemplate.Type.SmallCentipede, 0.8f);
@@ -66,9 +65,6 @@ public class SmallEelCritob : Critob
         rel.Eats(CreatureTemplate.Type.CicadaA, 0.7f);
         rel.Eats(CreatureTemplate.Type.CicadaB, 0.7f);
         rel.Eats(CreatureTemplate.Type.SeaLeech, 0.7f);
-        rel.Eats(CreatureTemplate.Type.EggBug, 0.6f);
-        rel.Eats(CreatureTemplate.Type.Scavenger, 0.5f);
-        rel.Eats(CreatureTemplate.Type.SmallNeedleWorm, 0.4f);
         rel.Eats(CreatureTemplate.Type.Fly, 0.2f);
         
         rel.Fears(CreatureTemplate.Type.BigEel, 1.0f);
@@ -77,14 +73,14 @@ public class SmallEelCritob : Critob
         rel.Fears(CreatureTemplate.Type.BrotherLongLegs, 0.8f);
         rel.Fears(CreatureTemplate.Type.KingVulture, 0.7f);
         rel.Fears(CreatureTemplate.Type.Vulture, 0.6f);
-        rel.Fears(CreatureTemplate.Type.LizardTemplate, 0.6f);
+        rel.Fears(CreatureTemplate.Type.TentaclePlant, 0.6f);
+        rel.Fears(CreatureTemplate.Type.PoleMimic, 0.5f);
+        rel.Fears(CreatureTemplate.Type.LizardTemplate, 0.5f);
+        rel.Fears(CreatureTemplate.Type.JetFish, 0.2f);
 
         rel.Rivals(CreatureTemplate.Type.RedCentipede, 0.7f);
         rel.Rivals(CreatureTemplate.Type.Centipede, 0.4f);
-        
-        rel.IntimidatedBy(CreatureTemplate.Type.PoleMimic, 0.7f);
-        
-        rel.AntagonizedBy(CreatureTemplate.Type.JetFish, 0.3f);
+
     }
 
     public override ItemProperties Properties(PhysicalObject forObject)

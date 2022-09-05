@@ -9,52 +9,53 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
     {
         _eel = abstractCreature.realizedCreature as SmallEel;
         _eel.ai = this;
-        AddModule(new FishPather(this, abstractCreature.world, abstractCreature));
-        pathFinder.stepsPerFrame = 40;
-        
-        AddModule(new Tracker(this, 10, 10, -1, 0.5f, 5, 5, 20));
 
-        AddModule(new RainTracker(this));
-        AddModule(new DenFinder(this, abstractCreature));
-        AddModule(new ThreatTracker(this, 3));
-        AddModule(new PreyTracker(this, 5, 1f, 10f, 150f, 0.05f));
-        AddModule(new InjuryTracker(this, 0.6f));
+        InitAIModules();
         
-        AddModule(new RelationshipTracker(this, tracker));
-        
-        AddModule(new UtilityComparer(this));
-        utilityComparer.AddComparedModule(rainTracker, null, 1f, 1.1f);
-        utilityComparer.AddComparedModule(threatTracker, null, 1f, 1.1f);
-        utilityComparer.AddComparedModule(preyTracker, null, 0.8f, 1.1f);
-        utilityComparer.AddComparedModule(injuryTracker, null, 0.7f, 1.1f);
-
         MyBehaviour = Behaviour.Idle;
         _idleBearing = Mathf.FloorToInt(Random.value * 360f);
+
+        if (SmallEelPlugin.debugMode)
+        {
+            tracker.visualize = true;
+            pathFinder.visualize = true;
+            utilityComparer.visualize = true;
+        }
+    }
+
+    private void InitAIModules()
+    {
+        AddModule(new FishPather(this, creature.world, creature));
+        pathFinder.stepsPerFrame = 40;
+
+        AddModule(new Tracker(this, 10, 10, -1, 0.35f, 5, 5, 10));
+        AddModule(new DenFinder(this, creature));
+        AddModule(new RelationshipTracker(this, tracker));
+
+        AddModule(new RainTracker(this));
+        AddModule(new ThreatTracker(this, 3));
+        AddModule(new PreyTracker(this, 5, 2f, 10f, 250f, 0.5f));
+
+        AddModule(new UtilityComparer(this));
+        utilityComparer.AddComparedModule(rainTracker, null, 0.9f, 1f);
+
+        FloatTweener.FloatTween smoother = new FloatTweener.FloatTweenUpAndDown(
+            new FloatTweener.FloatTweenBasic(FloatTweener.TweenType.Lerp, 0.5f),
+            new FloatTweener.FloatTweenBasic(FloatTweener.TweenType.Tick, 0.0025f));
+
+        utilityComparer.AddComparedModule(threatTracker, smoother, 1f, 1f);
+
+        smoother = new FloatTweener.FloatTweenBasic(FloatTweener.TweenType.Lerp, 0.15f);
+
+        utilityComparer.AddComparedModule(preyTracker, smoother, 1f, 1.3f);
     }
 
     public override void Update()
     {
         base.Update();
 
-        AIModule highestModule = utilityComparer.HighestUtilityModule();
-        float highestModuleVal = utilityComparer.HighestUtility();
-
-        if (highestModule != null)
-        {
-            MyBehaviour = highestModule switch
-            {
-                RainTracker => Behaviour.EscapeRain,
-                ThreatTracker => Behaviour.Flee,
-                PreyTracker => Behaviour.Hunt,
-                InjuryTracker => Behaviour.Injured,
-                _ => MyBehaviour
-            };
-        }
-
-        if (highestModuleVal < 0.1f)
-            MyBehaviour = Behaviour.Idle;
-
-        WorldCoordinate? dest = null;
+        UpdateBehaviour();
+        WorldCoordinate? dest;
 
         switch (MyBehaviour)
         {
@@ -63,65 +64,91 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
                 dest = FindWanderCoordinate();
                 break;
             case Behaviour.Flee:
-            {
-                dest = threatTracker.FleeTo(creature.pos, 1, 30, highestModuleVal > 0.4f);
+                dest = threatTracker.FleeTo(creature.pos, 1, 30, utilityComparer.HighestUtility() > 0.4f);
                 break;
-            }
             case Behaviour.Hunt:
-                creature.abstractAI.SetDestination(preyTracker.MostAttractivePrey.BestGuessForPosition());
+                dest = preyTracker.MostAttractivePrey?.BestGuessForPosition();
                 break;
+            case Behaviour.ReturnPreyToDen:
             case Behaviour.EscapeRain:
-            case Behaviour.Injured:
+                dest = denFinder.denPosition;
                 break;
         }
 
-        if ((dest == null || _lost) && denFinder.GetDenPosition() != null)
-            dest = denFinder.GetDenPosition().Value;
+        if (dest is null)
+        {
+            dest = denFinder.GetDenPosition();
+        }
+
+        if (dest is null)
+        {
+            SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : LOST : energy{_eel.Energy}", _eel.BaseColor);
+            return;
+        }
         
-        SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : {dest} : shock{_eel.shockCooldown}", _eel.BaseColor);
-        
-        if (dest == null) return;
         creature.abstractAI.SetDestination(dest.Value);
+
+        if (_eel.room is not null)
+            SmallEelPlugin.nodeManager.Draw(creature.ID.ToString(), Color.red, _eel.room, dest.Value.TileDefined ? dest.Value.Tile : _eel.room.exitAndDenIndex[dest.Value.abstractNode]);
+        SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : {dest} : energy{_eel.Energy}", _eel.BaseColor);
+    }
+    
+    private void UpdateBehaviour()
+    {
+        AIModule highestModule = utilityComparer.HighestUtilityModule();
+
+        if (highestModule != null)
+        {
+            MyBehaviour = highestModule switch
+            {
+                RainTracker   => Behaviour.EscapeRain,
+                ThreatTracker => Behaviour.Flee,
+                PreyTracker   => Behaviour.Hunt,
+                _ => MyBehaviour
+            };
+        }
+
+        bool hasPrey = _eel.grasps[0]?.grabbed is Creature;
+
+        if (hasPrey && (MyBehaviour != Behaviour.Flee || utilityComparer.HighestUtility() < 0.3f))
+        {
+            MyBehaviour = Behaviour.ReturnPreyToDen;
+        }
+        else if (hasPrey && MyBehaviour == Behaviour.Flee && utilityComparer.HighestUtility() > 0.75f)
+        {
+            _eel.ReleaseGrasp(0);
+        }
     }
 
-    private WorldCoordinate FindWanderCoordinate()
+    private WorldCoordinate? FindWanderCoordinate()
     {
-        float bearingWander = Mathf.Sin(Random.value * Mathf.PI * 2f);
-        _idleBearing += Mathf.RoundToInt(bearingWander * idleWanderMod);
-        
-        if (_idleBearing < 0) _idleBearing = Mathf.FloorToInt(360 + _idleBearing % 360);
-        else if (_idleBearing >= 360) _idleBearing = Mathf.FloorToInt(_idleBearing % 360);
-        
-        IntVector2 relativeDest = IntVector2.FromVector2(Custom.DegToVec(_idleBearing) * 25f);
-        WorldCoordinate dest = WorldCoordinate.AddIntVector(creature.pos, relativeDest);
+        // TODO: use smoothed noise or only change heading every x frames
 
-        int retries = wanderDirRetries;
-        while (creature.Room.realizedRoom.aimap.getAItile(dest).acc == AItile.Accessibility.Solid)
+        const float idleWanderMod = 15f;
+        const float lookAheadPixels = 40f;
+        const int retries = 10;
+
+        int bearingChange = Mathf.RoundToInt(Random.Range(-idleWanderMod, idleWanderMod));
+
+        for (int i = 0; i < retries; i++)
         {
-            if (retries <= 0)
+            _idleBearing += bearingChange;
+
+            if (_idleBearing < 0) _idleBearing = Mathf.FloorToInt(360 + _idleBearing % 360);
+            else if (_idleBearing >= 360) _idleBearing = Mathf.FloorToInt(_idleBearing % 360);
+
+            IntVector2 relativeDest = IntVector2.FromVector2(Custom.DegToVec(_idleBearing) * lookAheadPixels);
+            WorldCoordinate dest = WorldCoordinate.AddIntVector(creature.pos, relativeDest);
+            AItile aiTile = creature.Room.realizedRoom.aimap.getAItile(dest);
+
+            if (aiTile.acc != AItile.Accessibility.Solid && aiTile.terrainProximity > 2
+                && pathFinder.CoordinateReachableAndGetbackable(dest))
             {
-                _lost = true;
-                break;
+                return dest;
             }
-
-            IntVector2 iv = relativeDest;
-
-            for (int i = 5; i >= 0; i--)
-            {
-                iv = IntVector2.FromVector2(iv.ToVector2() * (i / 5f));
-                
-                IntVector2 newRelativeDest =
-                    IntVector2.FromVector2(Custom.RotateAroundOrigo(iv.ToVector2(), 360f / (wanderDirRetries + 1)));
-                dest = WorldCoordinate.AddIntVector(creature.pos, newRelativeDest);
-
-                if (creature.Room.realizedRoom.aimap.getAItile(dest).acc == AItile.Accessibility.Solid)
-                    break;
-            }
-            
-            retries--;
         }
 
-        return dest;
+        return null;
     }
 
     public bool DoIWantToShockCreature(AbstractCreature absCreature)
@@ -158,9 +185,6 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
 
     private readonly SmallEel _eel;
     private int _idleBearing;
-    private const float idleWanderMod = 15f;
-    private const int wanderDirRetries = 5;
-    private bool _lost;
     
     public Behaviour MyBehaviour { get; private set; }
 
@@ -169,9 +193,9 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         get
         {
             if (utilityComparer.HighestUtilityModule() == preyTracker)
-                return preyTracker.currentPrey.critRep.representedCreature;
+                return preyTracker.currentPrey?.critRep?.representedCreature;
             if (utilityComparer.HighestUtilityModule() == threatTracker)
-                return threatTracker.mostThreateningCreature.representedCreature;
+                return threatTracker.mostThreateningCreature?.representedCreature;
             return null;
         }
     }
@@ -182,8 +206,8 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         Idle,
         Flee,
         Hunt,
+        ReturnPreyToDen,
         EscapeRain,
-        Injured
     }
 
 
