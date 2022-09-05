@@ -7,13 +7,13 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
 {
     public SmallEelAI(AbstractCreature abstractCreature) : base(abstractCreature, abstractCreature.world)
     {
-        _eel = abstractCreature.realizedCreature as SmallEel;
-        _eel.ai = this;
+        eel = abstractCreature.realizedCreature as SmallEel;
+        eel.ai = this;
 
         InitAIModules();
         
         MyBehaviour = Behaviour.Idle;
-        _idleBearing = Mathf.FloorToInt(Random.value * 360f);
+        idleBearing = Mathf.FloorToInt(Random.value * 360f);
 
         if (SmallEelPlugin.debugMode)
         {
@@ -75,40 +75,43 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
                 break;
         }
 
-        if (dest is null)
+        if (dest is null && MyBehaviour != Behaviour.Idle)
         {
             dest = denFinder.GetDenPosition();
         }
 
         if (dest is null)
         {
-            SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : LOST : energy{_eel.Energy}", _eel.BaseColor);
+            SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : LOST : energy{eel.Energy}", eel.BaseColor);
             return;
         }
         
         creature.abstractAI.SetDestination(dest.Value);
 
-        if (_eel.room is not null)
-            SmallEelPlugin.nodeManager.Draw(creature.ID.ToString(), Color.red, _eel.room, dest.Value.TileDefined ? dest.Value.Tile : _eel.room.exitAndDenIndex[dest.Value.abstractNode]);
-        SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : {dest} : energy{_eel.Energy}", _eel.BaseColor);
+        if (eel.room is not null)
+            SmallEelPlugin.nodeManager.Draw(creature.ID.ToString(), Color.red, eel.room, dest.Value.TileDefined ? dest.Value.Tile : eel.room.exitAndDenIndex[dest.Value.abstractNode]);
+        SmallEelPlugin.textManager.Write(creature.ID.ToString(), $"{MyBehaviour} : {dest} : {(eel.room is null ? "null" : eel.room == eel.room.game.cameras[0].room)} : energy{eel.Energy}", eel.BaseColor);
     }
     
     private void UpdateBehaviour()
     {
         AIModule highestModule = utilityComparer.HighestUtilityModule();
 
-        if (highestModule != null)
+        MyBehaviour = highestModule switch
         {
-            MyBehaviour = highestModule switch
-            {
-                RainTracker   => Behaviour.EscapeRain,
-                ThreatTracker => Behaviour.Flee,
-                PreyTracker   => Behaviour.Hunt,
-                _ => MyBehaviour
-            };
+            RainTracker => Behaviour.EscapeRain,
+            ThreatTracker => Behaviour.Flee,
+            PreyTracker => Behaviour.Hunt,
+            null => Behaviour.Idle,
+            _ => MyBehaviour
+        };
+
+        if (utilityComparer.HighestUtility() < 0.1f)
+        {
+            MyBehaviour = Behaviour.Idle;
         }
 
-        bool hasPrey = _eel.grasps[0]?.grabbed is Creature;
+        bool hasPrey = eel.grasps[0]?.grabbed is Creature;
 
         if (hasPrey && (MyBehaviour != Behaviour.Flee || utilityComparer.HighestUtility() < 0.3f))
         {
@@ -116,14 +119,12 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         }
         else if (hasPrey && MyBehaviour == Behaviour.Flee && utilityComparer.HighestUtility() > 0.75f)
         {
-            _eel.ReleaseGrasp(0);
+            eel.ReleaseGrasp(0);
         }
     }
 
     private WorldCoordinate? FindWanderCoordinate()
     {
-        // TODO: use smoothed noise or only change heading every x frames
-
         const float idleWanderMod = 15f;
         const float lookAheadPixels = 40f;
         const int retries = 10;
@@ -132,12 +133,12 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
 
         for (int i = 0; i < retries; i++)
         {
-            _idleBearing += bearingChange;
+            idleBearing += bearingChange;
 
-            if (_idleBearing < 0) _idleBearing = Mathf.FloorToInt(360 + _idleBearing % 360);
-            else if (_idleBearing >= 360) _idleBearing = Mathf.FloorToInt(_idleBearing % 360);
+            if (idleBearing < 0) idleBearing = Mathf.FloorToInt(360 + idleBearing % 360);
+            else if (idleBearing >= 360) idleBearing = Mathf.FloorToInt(idleBearing % 360);
 
-            IntVector2 relativeDest = IntVector2.FromVector2(Custom.DegToVec(_idleBearing) * lookAheadPixels);
+            IntVector2 relativeDest = IntVector2.FromVector2(Custom.DegToVec(idleBearing) * lookAheadPixels);
             WorldCoordinate dest = WorldCoordinate.AddIntVector(creature.pos, relativeDest);
             AItile aiTile = creature.Room.realizedRoom.aimap.getAItile(dest);
 
@@ -183,8 +184,9 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
     }
     
 
-    private readonly SmallEel _eel;
-    private int _idleBearing;
+    private readonly SmallEel eel;
+    private int idleBearing;
+    private int wanderFrames;
     
     public Behaviour MyBehaviour { get; private set; }
 

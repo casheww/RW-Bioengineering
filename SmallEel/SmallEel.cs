@@ -85,8 +85,12 @@ public class SmallEel : Creature
     {
         if (room?.game?.devToolsActive is not null && room.game.devToolsActive && Input.GetKey(KeyCode.B) && room.game.cameras[0].room == room)
         {
-            bodyChunks[0].vel +=
-                Custom.DirVec(bodyChunks[0].pos, new Vector2(Input.mousePosition.x, Input.mousePosition.y) + room.game.cameras[0].pos) * 20f;
+            foreach (BodyChunk bc in bodyChunks)
+            {
+                bc.vel +=
+                    Custom.DirVec(bc.pos, new Vector2(Input.mousePosition.x, Input.mousePosition.y) + room.game.cameras[0].pos) * 20f;
+            }
+
             Stun(12);
         }
     }
@@ -122,6 +126,26 @@ public class SmallEel : Creature
                 bc.vel *= 0.05f;
             }
         }
+
+        WorldCoordinate dest = ai.pathFinder.destination;
+
+        if (enteringShortCut is null && dest.NodeDefined && room.abstractRoom.index == dest.room)
+        {
+            Vector2 middleOfNode = room.MiddleOfTile(room.LocalCoordinateOfNode(dest.abstractNode));
+
+            Vector2 dir = middleOfNode - mainBodyChunk.pos;
+
+            if (Custom.DistLess(mainBodyChunk.pos, middleOfNode, 40f))
+            {
+                SmallEelPlugin.Log.LogDebug($"eel approaching shortcut");
+
+                foreach (BodyChunk bc in bodyChunks)
+                {
+                    bc.vel += middleOfNode - bc.pos;
+                    SmallEelPlugin.Log.LogDebug(bc.vel);
+                }
+            }
+        }
     }
 
     private void Act()
@@ -130,28 +154,7 @@ public class SmallEel : Creature
 
         if (Submersion > 0f)
         {
-            WorldCoordinate dest = ai.pathFinder.destination;
-
-            Swim(CurrentMovement, dest);
-
-            // eels need extra help getting into shortcuts
-            if (enteringShortCut is null && dest.NodeDefined && room.abstractRoom.index == dest.room)
-            {
-                Vector2 middleOfNode = room.MiddleOfTile(room.LocalCoordinateOfNode(dest.abstractNode));
-
-                Vector2 dir = middleOfNode - mainBodyChunk.pos;
-
-                if (Custom.DistLess(mainBodyChunk.pos, middleOfNode, 40f))
-                {
-                    SmallEelPlugin.Log.LogDebug($"eel approaching shortcut");
-
-                    foreach (BodyChunk bc in bodyChunks)
-                    {
-                        bc.vel += middleOfNode - bc.pos;
-                        SmallEelPlugin.Log.LogDebug(bc.vel);
-                    }
-                }
-            }
+            Swim(CurrentMovement, ai.pathFinder.destination);
 
             if (ai.TargetCreature?.realizedCreature is null) return;
 
@@ -212,6 +215,12 @@ public class SmallEel : Creature
         if (dir != null)
         {
             mainBodyChunk.vel += dir.Value * Speed;
+
+            for (int i = 1; i < bodyChunks.Length; i++)
+            {
+                bodyChunks[i].vel += Custom.DirVec(bodyChunks[i].pos, bodyChunks[i - 1].pos) * Speed * 0.4f;
+            }
+
             Wiggle(dir.Value);
         }
     }
@@ -282,7 +291,14 @@ public class SmallEel : Creature
 
     public SmallEelAI ai;
     private MovementConnection CurrentMovement
-        => (ai.pathFinder as FishPather).FollowPath(room.GetWorldCoordinate(mainBodyChunk.pos), true);
+    {
+        get
+        {
+            if (ai?.pathFinder is null || room is null) return null;
+
+            return (ai.pathFinder as FishPather).FollowPath(room.GetWorldCoordinate(mainBodyChunk.pos), true);
+        }
+    }
 
     public float Energy { get; private set; }
     
@@ -291,10 +307,10 @@ public class SmallEel : Creature
         => ai.MyBehaviour switch
         {
             SmallEelAI.Behaviour.Idle => 10f,
-            SmallEelAI.Behaviour.Flee => 60f,
+            SmallEelAI.Behaviour.Flee => 80f,
             SmallEelAI.Behaviour.Hunt => 20f,
-            SmallEelAI.Behaviour.ReturnPreyToDen => 10f,
-            SmallEelAI.Behaviour.EscapeRain => 40f,
+            SmallEelAI.Behaviour.ReturnPreyToDen => 20f,
+            SmallEelAI.Behaviour.EscapeRain => 50f,
             _ => 10f
         };
 
