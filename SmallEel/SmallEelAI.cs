@@ -75,10 +75,10 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
                 break;
         }
 
-        if (dest is null && MyBehaviour != Behaviour.Idle)
-        {
-            dest = denFinder.GetDenPosition();
-        }
+        dest = dest is null ? FindWanderCoordinate() : dest;
+
+        dest = dest is null ? denFinder.GetDenPosition() : dest;
+
 
         if (dest is null)
         {
@@ -125,6 +125,8 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
 
     private WorldCoordinate? FindWanderCoordinate()
     {
+        SmallEelPlugin.Log.LogDebug("finding wander coord");
+
         const float idleWanderMod = 15f;
         const float lookAheadPixels = 40f;
         const int retries = 10;

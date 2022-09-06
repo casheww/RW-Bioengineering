@@ -36,7 +36,20 @@ public class SmallEel : Creature
         oscillationPeriod = 30f;
         oscillationPosition = 0f;
     }
-    
+
+    public override void SpitOutOfShortCut(IntVector2 pos, Room newRoom, bool spitOutAllSticks)
+    {
+        base.SpitOutOfShortCut(pos, newRoom, spitOutAllSticks);
+
+        foreach (BodyChunk bc in bodyChunks)
+        {
+            bc.pos += shortcutPushDir * 20f;
+            bc.vel = shortcutPushDir * 30f;
+        }
+
+        SmallEelPlugin.Log.LogDebug("SPIT OUT");
+    }
+
     private void GenerateIVars(out float size, out int chunkCount)
     {
         int seed = Random.seed;
@@ -75,9 +88,9 @@ public class SmallEel : Creature
         if (grasps[0] != null)
         {
             BodyChunk bc = grasps[0].grabbedChunk;
-            Vector2 v = Custom.DirVec(bc.pos, mainBodyChunk.pos) * Custom.Dist(bc.pos, mainBodyChunk.pos);
-            bc.vel += v * 0.9f;
-            mainBodyChunk.vel -= v * 0.1f;
+            Vector2 s = mainBodyChunk.pos - bc.pos;
+            bc.pos += s * 0.95f;
+            mainBodyChunk.pos -= s * 0.05f;
         }
     }
 
@@ -133,17 +146,20 @@ public class SmallEel : Creature
         {
             Vector2 middleOfNode = room.MiddleOfTile(room.LocalCoordinateOfNode(dest.abstractNode));
 
-            Vector2 dir = middleOfNode - mainBodyChunk.pos;
+            IntVector2 dir = IntVector2.FromVector2(Custom.DirVec(CurrentMovement.StartTile.ToVector2(), CurrentMovement.DestTile.ToVector2()));
+            IntVector2 shortcutDir = room.ShorcutEntranceHoleDirection(room.exitAndDenIndex[dest.abstractNode]);
 
-            if (Custom.DistLess(mainBodyChunk.pos, middleOfNode, 40f))
+            if (Custom.DistLess(mainBodyChunk.pos, middleOfNode, 40f) && dir == shortcutDir)
             {
-                SmallEelPlugin.Log.LogDebug($"eel approaching shortcut");
+                string str = "eel approaching shortcut    ";
 
                 foreach (BodyChunk bc in bodyChunks)
                 {
                     bc.vel += middleOfNode - bc.pos;
-                    SmallEelPlugin.Log.LogDebug(bc.vel);
+                    str += bc.vel.ToString() + " ; ";
                 }
+
+                SmallEelPlugin.Log.LogDebug(str);
             }
         }
     }
@@ -246,8 +262,13 @@ public class SmallEel : Creature
         
         float effectiveEnergy = TotalMass * Energy;
         
-        foreach (Grasp g in grabbedBy)
+        for (int i = grasps.Length - 1; i >= 0; i--)
         {
+            Grasp g = grasps[i];
+
+            if (g is null)
+                continue;
+
             if (CanIKillCreature(g.grabber))
             {
                 g.grabber.Die();
@@ -299,6 +320,7 @@ public class SmallEel : Creature
             return (ai.pathFinder as FishPather).FollowPath(room.GetWorldCoordinate(mainBodyChunk.pos), true);
         }
     }
+    public Vector2 shortcutPushDir;
 
     public float Energy { get; private set; }
     

@@ -13,16 +13,14 @@ public sealed class SmallEelPlugin : BaseUnityPlugin
 
     private void OnEnable()
     {
-        if (debugMode)
-            Hooks.Enable();
+        Hooks.Enable();
         
         Fisobs.Core.Content.Register(new SmallEelCritob());
     }
 
     private void OnDisable()
     {
-        if (debugMode)
-            Hooks.Disable();
+        Hooks.Disable();
     }
 
     private void Update()

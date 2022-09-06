@@ -1,4 +1,5 @@
-﻿using RWCustom;
+﻿using System;
+using RWCustom;
 using UnityEngine;
 
 namespace SmallEel;
@@ -8,11 +9,23 @@ public static class Hooks
     public static void Enable()
     {
         On.Player.Update += Player_Update;
+        On.ShortcutHandler.SpitOutCreature += ShortcutHandler_SpitOutCreature;
     }
 
     public static void Disable()
     {
         On.Player.Update -= Player_Update;
+    }
+
+    private static void ShortcutHandler_SpitOutCreature(On.ShortcutHandler.orig_SpitOutCreature orig, ShortcutHandler self, ShortcutHandler.ShortCutVessel vessel)
+    {
+        orig(self, vessel);
+
+        if (vessel.creature is SmallEel eel)
+        {
+            eel.shortcutPushDir = vessel.room.realizedRoom.ShorcutEntranceHoleDirection(vessel.pos).ToVector2();
+            SmallEelPlugin.Log.LogDebug(eel.shortcutPushDir);
+        }
     }
 
     private static void Player_Update(On.Player.orig_Update orig, Player self, bool eu)
