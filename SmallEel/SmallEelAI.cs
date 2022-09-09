@@ -130,7 +130,7 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
     {
         IntVector2 tile = eel.abstractCreature.pos.Tile;
         const int maxTileDist = 3;
-        const float dirPersistence = 0.9f;
+        const float dirPersistence = 0.995f;
         List<IntVector2> currAccessDisplacement = new ();
         List<IntVector2> prevAccessDisplacement = new ();
 

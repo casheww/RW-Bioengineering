@@ -234,7 +234,7 @@ public class SmallEel : Creature
 
             for (int i = 1; i < bodyChunks.Length; i++)
             {
-                bodyChunks[i].vel += Custom.DirVec(bodyChunks[i].pos, bodyChunks[i - 1].pos) * Speed * 0.4f;
+                bodyChunks[i].vel += Custom.DirVec(bodyChunks[i].pos, bodyChunks[i - 1].pos) * Speed * 0.2f;
             }
 
             Wiggle(dir.Value);
@@ -328,11 +328,11 @@ public class SmallEel : Creature
     private float Speed
         => ai.MyBehaviour switch
         {
-            SmallEelAI.Behaviour.Idle => 10f,
-            SmallEelAI.Behaviour.Flee => 80f,
+            SmallEelAI.Behaviour.Idle => 3f,
+            SmallEelAI.Behaviour.Flee => 60f,
             SmallEelAI.Behaviour.Hunt => 20f,
             SmallEelAI.Behaviour.ReturnPreyToDen => 20f,
-            SmallEelAI.Behaviour.EscapeRain => 50f,
+            SmallEelAI.Behaviour.EscapeRain => 40f,
             _ => 10f
         };
 
@@ -352,6 +352,12 @@ public class SmallEel : Creature
 
     private float oscillationPeriod;
     private float oscillationPosition;
-    private float OscillationAmplitude => ai?.MyBehaviour == SmallEelAI.Behaviour.Hunt ? 5f : 10f;
+    private float OscillationAmplitude
+        => ai?.MyBehaviour switch
+        {
+            SmallEelAI.Behaviour.Idle => 1.5f,
+            SmallEelAI.Behaviour.Hunt or SmallEelAI.Behaviour.Flee => 3f,
+            _ => 6f
+        };
 
 }
