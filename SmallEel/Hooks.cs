@@ -15,6 +15,7 @@ public static class Hooks
     public static void Disable()
     {
         On.Player.Update -= Player_Update;
+        On.ShortcutHandler.SpitOutCreature -= ShortcutHandler_SpitOutCreature;
     }
 
     private static void ShortcutHandler_SpitOutCreature(On.ShortcutHandler.orig_SpitOutCreature orig, ShortcutHandler self, ShortcutHandler.ShortCutVessel vessel)
@@ -24,7 +25,6 @@ public static class Hooks
         if (vessel.creature is SmallEel eel)
         {
             eel.shortcutPushDir = vessel.room.realizedRoom.ShorcutEntranceHoleDirection(vessel.pos).ToVector2();
-            SmallEelPlugin.Log.LogDebug(eel.shortcutPushDir);
         }
     }
 

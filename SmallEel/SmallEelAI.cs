@@ -1,4 +1,6 @@
-﻿using RWCustom;
+﻿using System.Collections.Generic;
+using System.Linq;
+using RWCustom;
 using UnityEngine;
 
 namespace SmallEel;
@@ -13,7 +15,6 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         InitAIModules();
         
         MyBehaviour = Behaviour.Idle;
-        idleBearing = Mathf.FloorToInt(Random.value * 360f);
 
         if (SmallEelPlugin.debugMode)
         {
@@ -61,7 +62,7 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         {
             default:
             case Behaviour.Idle:
-                dest = FindWanderCoordinate();
+                dest = FindWanderCoordinate(true);
                 break;
             case Behaviour.Flee:
                 dest = threatTracker.FleeTo(creature.pos, 1, 30, utilityComparer.HighestUtility() > 0.4f);
@@ -75,10 +76,12 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
                 break;
         }
 
-        dest = dest is null ? FindWanderCoordinate() : dest;
+        dest = dest is null && MyBehaviour != Behaviour.Idle ? FindWanderCoordinate(true) : dest;
+
+        if (dest is null)
+            SmallEelPlugin.Log.LogDebug("dest is null after force-wander");
 
         dest = dest is null ? denFinder.GetDenPosition() : dest;
-
 
         if (dest is null)
         {
@@ -123,32 +126,58 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
         }
     }
 
-    private WorldCoordinate? FindWanderCoordinate()
+    private WorldCoordinate? FindWanderCoordinate(bool considerTerrainProx)
     {
-        SmallEelPlugin.Log.LogDebug("finding wander coord");
+        IntVector2 tile = eel.abstractCreature.pos.Tile;
+        const int maxTileDist = 3;
+        const float dirPersistence = 0.9f;
+        List<IntVector2> currAccessDisplacement = new ();
+        List<IntVector2> prevAccessDisplacement = new ();
 
-        const float idleWanderMod = 15f;
-        const float lookAheadPixels = 40f;
-        const int retries = 10;
-
-        int bearingChange = Mathf.RoundToInt(Random.Range(-idleWanderMod, idleWanderMod));
-
-        for (int i = 0; i < retries; i++)
+        for (int i = 1; i <= maxTileDist; i++)
         {
-            idleBearing += bearingChange;
-
-            if (idleBearing < 0) idleBearing = Mathf.FloorToInt(360 + idleBearing % 360);
-            else if (idleBearing >= 360) idleBearing = Mathf.FloorToInt(idleBearing % 360);
-
-            IntVector2 relativeDest = IntVector2.FromVector2(Custom.DegToVec(idleBearing) * lookAheadPixels);
-            WorldCoordinate dest = WorldCoordinate.AddIntVector(creature.pos, relativeDest);
-            AItile aiTile = creature.Room.realizedRoom.aimap.getAItile(dest);
-
-            if (aiTile.acc != AItile.Accessibility.Solid && aiTile.terrainProximity > 2
-                && pathFinder.CoordinateReachableAndGetbackable(dest))
+            for (int j = 0; j < Custom.eightDirections.Length; j++)
             {
-                return dest;
+                IntVector2 dest = tile + Custom.eightDirections[j] * i;
+
+                WorldCoordinate destWC = new WorldCoordinate(eel.room.abstractRoom.index, dest.x, dest.y, -1);
+                AItile aiTile = creature.Room.realizedRoom.aimap.getAItile(dest);
+
+                if (aiTile.acc != AItile.Accessibility.Solid && (aiTile.terrainProximity > 3 || !considerTerrainProx)
+                    && pathFinder.CoordinateReachableAndGetbackable(destWC))
+                {
+                    currAccessDisplacement.Add(Custom.eightDirections[j]);
+                }
             }
+
+            if (currAccessDisplacement.Count == 0 && prevAccessDisplacement.Count > 0)
+            {
+                if (!(prevAccessDisplacement.Contains(wanderDir) && Random.value < dirPersistence))
+                {
+                    wanderDir = prevAccessDisplacement[Random.Range(0, prevAccessDisplacement.Count)];
+                }
+                
+                return eel.abstractCreature.pos + wanderDir * (i - 1);
+            }
+            else if (currAccessDisplacement.Count > 0 && i == maxTileDist)
+            {
+                if (!(currAccessDisplacement.Contains(wanderDir) && Random.value < dirPersistence))
+                {
+                    wanderDir = currAccessDisplacement[Random.Range(0, currAccessDisplacement.Count)];
+                }
+
+                return eel.abstractCreature.pos + wanderDir * i;
+            }
+
+            prevAccessDisplacement.Clear();
+            prevAccessDisplacement.AddRange(currAccessDisplacement);
+            currAccessDisplacement.Clear();
+        }
+
+        // if we've failed and this call considered terrain proximity, try again but without considering terrain proximity
+        if (considerTerrainProx)
+        {
+            return FindWanderCoordinate(false);
         }
 
         return null;
@@ -187,10 +216,9 @@ public class SmallEelAI : ArtificialIntelligence, IUseARelationshipTracker
     
 
     private readonly SmallEel eel;
-    private int idleBearing;
-    private int wanderFrames;
     
     public Behaviour MyBehaviour { get; private set; }
+    private IntVector2 wanderDir;
 
     public AbstractCreature TargetCreature
     {
